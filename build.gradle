@@ -7,6 +7,10 @@ buildscript {
 	}
 }
 
+plugins {
+	id "maven"
+}
+
 apply plugin: "kotlin"
 
 repositories {
@@ -17,4 +21,12 @@ dependencies {
 	compile group: "org.jetbrains.kotlin", name: "kotlin-stdlib", version: kotlin_version
 	compile group: "org.jetbrains.kotlin", name: "kotlin-compiler", version: kotlin_version
 	compile group: "org.jetbrains.kotlin", name: "kotlin-script-util", version: kotlin_version
+}
+
+uploadArchives {
+	repositories.mavenDeployer {
+		repository(url: "http://archiva.shadowfacts.net/repository/local/") {
+			authentication(userName: project.hasProperty("mavenUser") ? project.mavenUser : System.getenv("mavenUser"), password: project.hasProperty("mavenPassword") ? project.mavenPassword : System.getenv("mavenPassword"))
+		}
+	}
 }
