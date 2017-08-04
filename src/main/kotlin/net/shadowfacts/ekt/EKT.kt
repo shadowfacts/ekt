@@ -35,7 +35,7 @@ _result.toString()
 		ScriptEngineManager()
 	}
 
-	fun render(template: String, data: Map<String, Any>, dumpGeneratedScript: Boolean = false): String {
+	fun render(template: String, data: Map<String, Any>, dumpGeneratedScript: File? = null): String {
 		@Suppress("NAME_SHADOWING")
 		var template = template
 		template = template.replace("\"", "\\\"").replace("$", "\${'$'}")
@@ -59,17 +59,15 @@ _result.toString()
 
 		val script = scriptPrefix + template + scriptSuffix
 
-		if (dumpGeneratedScript) {
-			File("script.kts").apply {
-				if (!exists()) createNewFile()
-				writeText(script)
-			}
+		dumpGeneratedScript?.apply {
+			if (!exists()) createNewFile()
+			writeText(script)
 		}
 
 		return eval(script, data) as String
 	}
 
-	fun render(template: File, data: Map<String, Any>, dumpGeneratedScript: Boolean = false): String {
+	fun render(template: File, data: Map<String, Any>, dumpGeneratedScript: File? = null): String {
 		return render(template.readText(), data, dumpGeneratedScript)
 	}
 

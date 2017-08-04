@@ -8,7 +8,7 @@ import java.io.File
 fun main(args: Array<String>) {
 	val res = EKT.render(File("template.ekt"), mapOf(
 			"value" to 11
-	), dumpGeneratedScript = true)
+	), dumpGeneratedScript = File("script.kts"))
 
 	File("result.txt").apply {
 		if (!exists()) createNewFile()
