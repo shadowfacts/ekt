@@ -9,10 +9,19 @@ import javax.script.ScriptEngineManager
  */
 object EKT {
 
-	private val startString = ":]"
-	private val endString = "[:"
-	private val startStringRegex = Regex("(?:^|[^\\\\])([:=])]\n?")
-	private val endStringRegex = Regex("\\[([:=])")
+	private val startControlCodes: Map<String, (String) -> String> = mapOf(
+			":" to { s -> s },
+			"=" to { s -> ")" + s },
+			"#" to { s -> "*/" + s }
+	)
+	private val endControlCodes: Map<String, (String) -> String> = mapOf(
+			":" to { s -> s },
+			"=" to { s -> s + "echo(" },
+			"#" to { s -> s + "/*" }
+	)
+
+	private val startStringRegex = Regex("(?:^|[^\\\\])([:=#])]\n?")
+	private val endStringRegex = Regex("\\[([:=#])")
 
 	private val scriptPrefix = """
 val _result = StringBuilder()
@@ -29,17 +38,23 @@ _result.toString()
 	fun render(template: String, data: Map<String, Any>, dumpGeneratedScript: Boolean = false): String {
 		@Suppress("NAME_SHADOWING")
 		var template = template
-		template = template.replace("\"", "\\\"")
-		template = startString + template + endString
+		template = template.replace("\"", "\\\"").replace("$", "\${'$'}")
+		template = ":]$template[:"
 		template = template.replace(startStringRegex, {
-			var res = "\necho(\"\"\""
-			if (it.groups[1]!!.value == "=") res = ")" + res
-			res
+			val c = it.groups[1]!!.value
+			if (c in startControlCodes) {
+				startControlCodes[c]!!("\necho(\"\"\"")
+			} else {
+				throw RuntimeException("Unknown control code: [$c")
+			}
 		})
 		template = template.replace(endStringRegex, {
-			var res = "\"\"\")\n"
-			if (it.groups[1]!!.value == "=") res += "echo("
-			res
+			val c = it.groups[1]!!.value
+			if (c in endControlCodes) {
+				endControlCodes[c]!!("\"\"\")\n")
+			} else {
+				throw RuntimeException("Unknown control code: $c]")
+			}
 		})
 
 		val script = scriptPrefix + template + scriptSuffix
