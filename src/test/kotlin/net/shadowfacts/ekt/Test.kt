@@ -7,7 +7,9 @@ import java.io.File
  */
 fun main(args: Array<String>) {
 	val res = EKT.render(File("template.ekt"), mapOf(
-			"value" to 11
+			"title" to "EKT Test",
+			"body" to "some test content",
+			"value" to 42
 	), dumpGeneratedScript = File("script.kts"))
 
 	File("result.txt").apply {

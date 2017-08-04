@@ -20,7 +20,7 @@ object EKT {
 			"#" to { s -> s + "/*" }
 	)
 
-	private val startStringRegex = Regex("(?:^|[^\\\\])([:=#])]\n?")
+	private val startStringRegex = Regex("(?:^|[^\\\\])([:=#])]")
 	private val endStringRegex = Regex("\\[([:=#])")
 
 	private val scriptPrefix = """
@@ -38,7 +38,7 @@ _result.toString()
 	fun render(template: String, data: Map<String, Any>, dumpGeneratedScript: File? = null): String {
 		@Suppress("NAME_SHADOWING")
 		var template = template
-		template = template.replace("\"", "\\\"").replace("$", "\${'$'}")
+		template = template.replace("$", "\${'$'}")
 		template = ":]$template[:"
 		template = template.replace(startStringRegex, {
 			val c = it.groups[1]!!.value
