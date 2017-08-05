@@ -6,9 +6,9 @@ import java.io.File
  * @author shadowfacts
  */
 fun main(args: Array<String>) {
-	val res = EKT.render(File("template.ekt"), mapOf(
-			"list" to EKT.Value(listOf(1, 2, 3), "List<String>")
-	), dumpGeneratedScript = File("script.kts"))
+	val res = EKT.render(File("template.ekt"), dumpGeneratedScript = File("script.kts")) {
+		"list" to (listOf(1, 2, 3) asType "List<Int>")
+	}
 
 	File("result.txt").apply {
 		if (!exists()) createNewFile()

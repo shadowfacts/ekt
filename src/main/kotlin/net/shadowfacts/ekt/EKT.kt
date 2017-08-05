@@ -35,7 +35,7 @@ _result.toString()
 		ScriptEngineManager()
 	}
 
-	fun render(template: String, data: Map<String, Any>, dumpGeneratedScript: File? = null): String {
+	fun render(template: String, dumpGeneratedScript: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
 		@Suppress("NAME_SHADOWING")
 		var template = template
 		template = template.replace("$", "\${'$'}")
@@ -64,34 +64,47 @@ _result.toString()
 			writeText(script)
 		}
 
-		return eval(script, data) as String
+		val data = DataProviderContext()
+		data.dataProvider()
+
+		return eval(script, data.map) as String
 	}
 
-	fun render(template: File, data: Map<String, Any>, dumpGeneratedScript: File? = null): String {
-		return render(template.readText(), data, dumpGeneratedScript)
+	fun render(template: File, dumpGeneratedScript: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
+		return render(template.readText(), dumpGeneratedScript, dataProvider)
 	}
 
-	internal fun eval(script: String, data: Map<String, Any> = mapOf()): Any? {
+	internal fun eval(script: String, data: Map<String, TypedValue> = mapOf()): Any? {
 		val engine = manager.getEngineByExtension("kts")
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(data)
 
 //		Hack to allow data to be accessed by name from template instead of via bindings map
 		val unwrapBindings = data.keys.map {
-			val value = data[it]!!
-			if (value is Value) {
-				val type = value.type
-				"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.Value).value as $type"
-			} else {
-				val type = value::class.qualifiedName
-				"val $it = bindings[\"$it\"] as $type"
-			}
+			val type = data[it]!!.type
+			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
 		}.joinToString("\n")
 		engine.eval(unwrapBindings)
 
 		return engine.eval(script)
 	}
 
-	data class Value(val value: Any, val type: String)
+	class DataProviderContext {
+		internal val map = mutableMapOf<String, TypedValue>()
+
+		infix fun String.to(value: Any) {
+			if (value is TypedValue) {
+				map[this] = value
+			} else {
+				map[this] = TypedValue(value, value::class.qualifiedName!!)
+			}
+		}
+
+		infix fun Any.asType(type: String): TypedValue {
+			return TypedValue(this, type)
+		}
+	}
+
+	data class TypedValue(val value: Any, val type: String)
 
 }
