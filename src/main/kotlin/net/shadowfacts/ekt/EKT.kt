@@ -78,12 +78,20 @@ _result.toString()
 
 //		Hack to allow data to be accessed by name from template instead of via bindings map
 		val unwrapBindings = data.keys.map {
-			val type = data[it]!!::class.qualifiedName
-			"val $it = bindings[\"$it\"] as $type;"
+			val value = data[it]!!
+			if (value is Value) {
+				val type = value.type
+				"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.Value).value as $type"
+			} else {
+				val type = value::class.qualifiedName
+				"val $it = bindings[\"$it\"] as $type"
+			}
 		}.joinToString("\n")
 		engine.eval(unwrapBindings)
 
 		return engine.eval(script)
 	}
+
+	data class Value(val value: Any, val type: String)
 
 }
