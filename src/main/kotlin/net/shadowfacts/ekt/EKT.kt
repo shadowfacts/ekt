@@ -40,7 +40,7 @@ _result.toString()
 		manager.getEngineByExtension("kts")
 	}
 
-	fun render(template: String, dumpGeneratedScript: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
+	fun render(template: String, scriptCache: File? = null, data: Map<String, TypedValue>): String {
 		@Suppress("NAME_SHADOWING")
 		var template = template
 		template = template.replace("$", "\${'$'}")
@@ -62,34 +62,53 @@ _result.toString()
 			}
 		})
 
-		val script = scriptPrefix + template + scriptSuffix
+//		Hack to allow data to be accessed by name from template instead of via bindings map
+		val unwrapBindings = data.keys.map {
+			val type = data[it]!!.type
+			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
+		}.joinToString("\n")
 
-		dumpGeneratedScript?.apply {
+		val script = unwrapBindings + scriptPrefix + template + scriptSuffix
+
+		scriptCache?.apply {
+			if (!parentFile.exists()) parentFile.mkdirs()
 			if (!exists()) createNewFile()
 			writeText(script)
 		}
 
-		val data = DataProviderContext()
-		data.dataProvider()
-
-		return eval(script, data.map) as String
+		return eval(script, data) as String
 	}
 
-	fun render(template: File, dumpGeneratedScript: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
-		return render(template.readText(), dumpGeneratedScript, dataProvider)
+	fun render(template: String, scriptCache: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
+		val ctx = DataProviderContext()
+		ctx.dataProvider()
+		return render(template, scriptCache, ctx.map)
+	}
+
+	fun render(template: File, scriptCacheDir: File? = null, data: Map<String, TypedValue>): String {
+		val cacheFile = if (scriptCacheDir != null) {
+			File(scriptCacheDir, template.nameWithoutExtension + ".kts")
+		} else {
+			null
+		}
+
+		if (cacheFile != null && cacheFile.exists()) {
+			return eval(cacheFile.readText(), data) as String
+		} else {
+			return render(template.readText(), cacheFile, data)
+		}
+	}
+
+	fun render(template: File, scriptCacheDir: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
+		val ctx = DataProviderContext()
+		ctx.dataProvider()
+		return render(template, scriptCacheDir, ctx.map)
 	}
 
 	internal fun eval(script: String, data: Map<String, TypedValue> = mapOf()): Any? {
 		engine.context = SimpleScriptContext()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(data)
-
-//		Hack to allow data to be accessed by name from template instead of via bindings map
-		val unwrapBindings = data.keys.map {
-			val type = data[it]!!.type
-			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
-		}.joinToString("\n")
-		engine.eval(unwrapBindings)
 
 		return engine.eval(script)
 	}
