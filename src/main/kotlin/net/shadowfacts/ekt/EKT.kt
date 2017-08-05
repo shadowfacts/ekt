@@ -3,6 +3,7 @@ package net.shadowfacts.ekt
 import java.io.File
 import javax.script.ScriptContext
 import javax.script.ScriptEngineManager
+import javax.script.SimpleScriptContext
 
 /**
  * @author shadowfacts
@@ -33,6 +34,10 @@ _result.toString()
 
 	private val manager by lazy {
 		ScriptEngineManager()
+	}
+
+	private val engine by lazy {
+		manager.getEngineByExtension("kts")
 	}
 
 	fun render(template: String, dumpGeneratedScript: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
@@ -75,7 +80,7 @@ _result.toString()
 	}
 
 	internal fun eval(script: String, data: Map<String, TypedValue> = mapOf()): Any? {
-		val engine = manager.getEngineByExtension("kts")
+		engine.context = SimpleScriptContext()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(data)
 
