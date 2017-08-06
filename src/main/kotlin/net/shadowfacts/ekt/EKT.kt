@@ -29,7 +29,7 @@ val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
 fun echo(it: Any) { _result.append(it) }
 fun include(include: String) {
-	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env)
+	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env, cacheDir = null)
 	echo(net.shadowfacts.ekt.EKT.render(env, env.include))
 }
 """
@@ -139,12 +139,12 @@ _result.toString()
 		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, init: DataProvider.() -> Unit):
 				this(name, templateDir, includeDir, cacheDir, DataProvider.init(init))
 
-		constructor(name: String, parent: TemplateEnvironment) {
+		constructor(name: String, parent: TemplateEnvironment, cacheDir: File? = parent.cacheDir) {
 			this.rootName = parent.rootName
 			this.name = name
 			this.templateDir = parent.templateDir
 			this.includeDir = parent.includeDir
-			this.cacheDir = parent.cacheDir
+			this.cacheDir = cacheDir
 			this.data = parent.data
 		}
 
