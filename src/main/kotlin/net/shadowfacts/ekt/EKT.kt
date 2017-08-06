@@ -21,7 +21,7 @@ object EKT {
 			"#" to { s -> s + "/*" }
 	)
 
-	private val startStringRegex = Regex("(?:^|[^\\\\])([:=#])]")
+	private val startStringRegex = Regex("([:=#])]")
 	private val endStringRegex = Regex("\\[([:=#])")
 
 	private val scriptPrefix = """
@@ -37,17 +37,13 @@ fun include(include: String) {
 _result.toString()
 """
 
-	private val manager by lazy {
-		ScriptEngineManager()
-	}
-
 	private val engine by lazy {
-		manager.getEngineByExtension("kts")
+		ScriptEngineManager().getEngineByExtension("kts")
 	}
 
 	fun render(env: TemplateEnvironment, template: String = env.template): String {
 		if (env.cacheDir != null && env.cacheFile.exists()) {
-			return eval(env.cacheFile.readText(Charsets.UTF_8), env) as String
+			return eval(env.cacheFile.readText(Charsets.UTF_8), env)
 		}
 
 		@Suppress("NAME_SHADOWING")
@@ -87,7 +83,7 @@ _result.toString()
 			}
 		}
 
-		return eval(script, env) as String
+		return eval(script, env)
 	}
 
 	fun render(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, data: Map<String, TypedValue>): String {
@@ -106,13 +102,13 @@ _result.toString()
 		return render(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, init)
 	}
 
-	internal fun eval(script: String, env: TemplateEnvironment): Any? {
+	internal fun eval(script: String, env: TemplateEnvironment): String {
 		engine.context = SimpleScriptContext()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(env.data)
 		bindings.put("_env", env)
 
-		return engine.eval(script)
+		return engine.eval(script) as String
 	}
 
 	class TemplateEnvironment {
