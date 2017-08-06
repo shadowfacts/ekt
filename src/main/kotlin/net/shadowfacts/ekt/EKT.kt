@@ -25,8 +25,13 @@ object EKT {
 	private val endStringRegex = Regex("\\[([:=#])")
 
 	private val scriptPrefix = """
+val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
-fun echo(s: Any) { _result.append(s) }
+fun echo(it: Any) { _result.append(it) }
+fun include(include: String) {
+	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env)
+	echo(net.shadowfacts.ekt.EKT.render(env, env.include))
+}
 """
 	private val scriptSuffix = """
 _result.toString()
@@ -40,7 +45,11 @@ _result.toString()
 		manager.getEngineByExtension("kts")
 	}
 
-	fun render(template: String, scriptCache: File? = null, data: Map<String, TypedValue>): String {
+	fun render(env: TemplateEnvironment, template: String = env.template): String {
+		if (env.cacheDir != null && env.cacheFile.exists()) {
+			return eval(env.cacheFile.readText(Charsets.UTF_8), env) as String
+		}
+
 		@Suppress("NAME_SHADOWING")
 		var template = template
 		template = template.replace("$", "\${'$'}")
@@ -63,57 +72,89 @@ _result.toString()
 		})
 
 //		Hack to allow data to be accessed by name from template instead of via bindings map
-		val unwrapBindings = data.keys.map {
-			val type = data[it]!!.type
+		val unwrapBindings = env.data.keys.map {
+			val type = env.data[it]!!.type
 			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
 		}.joinToString("\n")
 
 		val script = unwrapBindings + scriptPrefix + template + scriptSuffix
 
-		scriptCache?.apply {
-			if (!parentFile.exists()) parentFile.mkdirs()
-			if (!exists()) createNewFile()
-			writeText(script)
+		if (env.cacheDir != null) {
+			env.cacheFile.apply {
+				if (!parentFile.exists()) parentFile.mkdirs()
+				if (!exists()) createNewFile()
+				writeText(script, Charsets.UTF_8)
+			}
 		}
 
-		return eval(script, data) as String
+		return eval(script, env) as String
 	}
 
-	fun render(template: String, scriptCache: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
-		val ctx = DataProviderContext()
-		ctx.dataProvider()
-		return render(template, scriptCache, ctx.map)
+	fun render(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, data: Map<String, TypedValue>): String {
+		return render(TemplateEnvironment(name, templateDir, includeDir, cacheDir, data))
 	}
 
-	fun render(template: File, scriptCacheDir: File? = null, data: Map<String, TypedValue>): String {
-		val cacheFile = if (scriptCacheDir != null) {
-			File(scriptCacheDir, template.nameWithoutExtension + ".kts")
-		} else {
-			null
-		}
-
-		if (cacheFile != null && cacheFile.exists()) {
-			return eval(cacheFile.readText(), data) as String
-		} else {
-			return render(template.readText(), cacheFile, data)
-		}
+	fun render(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, init: DataProvider.() -> Unit): String {
+		return render(TemplateEnvironment(name, templateDir, includeDir, cacheDir, init))
 	}
 
-	fun render(template: File, scriptCacheDir: File? = null, dataProvider: DataProviderContext.() -> Unit): String {
-		val ctx = DataProviderContext()
-		ctx.dataProvider()
-		return render(template, scriptCacheDir, ctx.map)
+	fun render(name: String, dir: File, cacheScripts: Boolean = false, data: Map<String, TypedValue>): String {
+		return render(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, data)
 	}
 
-	internal fun eval(script: String, data: Map<String, TypedValue> = mapOf()): Any? {
+	fun render(name: String, dir: File, cacheScripts: Boolean = false, init: DataProvider.() -> Unit): String {
+		return render(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, init)
+	}
+
+	internal fun eval(script: String, env: TemplateEnvironment): Any? {
 		engine.context = SimpleScriptContext()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
-		bindings.putAll(data)
+		bindings.putAll(env.data)
+		bindings.put("_env", env)
 
 		return engine.eval(script)
 	}
 
-	class DataProviderContext {
+	class TemplateEnvironment {
+
+		val rootName: String
+		val name: String
+		val templateDir: File
+		val includeDir: File
+		val cacheDir: File?
+		val data: Map<String, TypedValue>
+
+		val template: String
+			get() = File(templateDir, "$name.ekt").readText(Charsets.UTF_8)
+		val include: String
+			get() = File(includeDir, "$name.ekt").readText(Charsets.UTF_8)
+		val cacheFile: File
+			get() = File(cacheDir!!, "$name.kts")
+
+		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, data: Map<String, TypedValue>) {
+			this.rootName = name
+			this.name = name
+			this.templateDir = templateDir
+			this.includeDir = includeDir
+			this.cacheDir = cacheDir
+			this.data = data
+		}
+
+		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, init: DataProvider.() -> Unit):
+				this(name, templateDir, includeDir, cacheDir, DataProvider.init(init))
+
+		constructor(name: String, parent: TemplateEnvironment) {
+			this.rootName = parent.rootName
+			this.name = name
+			this.templateDir = parent.templateDir
+			this.includeDir = parent.includeDir
+			this.cacheDir = parent.cacheDir
+			this.data = parent.data
+		}
+
+	}
+
+	class DataProvider {
 		internal val map = mutableMapOf<String, TypedValue>()
 
 		infix fun String.to(value: Any) {
@@ -126,6 +167,14 @@ _result.toString()
 
 		infix fun Any.asType(type: String): TypedValue {
 			return TypedValue(this, type)
+		}
+
+		companion object {
+			fun init(init: DataProvider.() -> Unit): Map<String, TypedValue> {
+				val ctx = DataProvider()
+				ctx.init()
+				return ctx.map
+			}
 		}
 	}
 
