@@ -29,7 +29,7 @@ val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
 fun echo(it: Any) { _result.append(it) }
 fun include(include: String) {
-	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env, cacheDir = null)
+	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env)
 	echo(net.shadowfacts.ekt.EKT.render(env, env.include))
 }
 """
@@ -67,13 +67,7 @@ _result.toString()
 			}
 		})
 
-//		Hack to allow data to be accessed by name from template instead of via bindings map
-		val unwrapBindings = env.data.keys.map {
-			val type = env.data[it]!!.type
-			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
-		}.joinToString("\n")
-
-		val script = unwrapBindings + scriptPrefix + template + scriptSuffix
+		val script = scriptPrefix + template + scriptSuffix
 
 		if (env.cacheDir != null) {
 			env.cacheFile.apply {
@@ -107,6 +101,13 @@ _result.toString()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(env.data)
 		bindings.put("_env", env)
+
+//		Hack to allow data to be accessed by name from template instead of via bindings map
+		val unwrapBindings = env.data.keys.map {
+			val type = env.data[it]!!.type
+			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
+		}.joinToString("\n")
+		engine.eval(unwrapBindings)
 
 		return engine.eval(script) as String
 	}
