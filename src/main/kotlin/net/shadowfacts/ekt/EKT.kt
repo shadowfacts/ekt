@@ -27,9 +27,9 @@ object EKT {
 	private val scriptPrefix = """
 val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
-fun echo(it: Any) { _result.append(it) }
+fun echo(it: Any?) { _result.append(it) }
 fun include(include: String) {
-	val env = net.shadowfacts.ekt.EKT.TemplateEnvironment(include, _env)
+	val env = _env.createChild(include)
 	echo(net.shadowfacts.ekt.EKT.render(env, env.include))
 }
 """
@@ -80,20 +80,36 @@ _result.toString()
 		return eval(script, env)
 	}
 
-	fun render(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, data: Map<String, TypedValue>): String {
-		return render(TemplateEnvironment(name, templateDir, includeDir, cacheDir, data))
+	fun renderFile(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, data: Map<String, TypedValue>): String {
+		return render(FileTemplateEnvironment(name, templateDir, includeDir, cacheDir, data))
 	}
 
-	fun render(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, init: DataProvider.() -> Unit): String {
-		return render(TemplateEnvironment(name, templateDir, includeDir, cacheDir, init))
+	fun renderFile(name: String, templateDir: File, includeDir: File, cacheDir: File? = null, init: DataProvider.() -> Unit): String {
+		return render(FileTemplateEnvironment(name, templateDir, includeDir, cacheDir, init))
 	}
 
-	fun render(name: String, dir: File, cacheScripts: Boolean = false, data: Map<String, TypedValue>): String {
-		return render(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, data)
+	fun renderFile(name: String, dir: File, cacheScripts: Boolean = false, data: Map<String, TypedValue>): String {
+		return renderFile(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, data)
 	}
 
-	fun render(name: String, dir: File, cacheScripts: Boolean = false, init: DataProvider.() -> Unit): String {
-		return render(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, init)
+	fun renderFile(name: String, dir: File, cacheScripts: Boolean = false, init: DataProvider.() -> Unit): String {
+		return renderFile(name, dir, File(dir, "includes"), if (cacheScripts) File(dir, "cache") else null, init)
+	}
+
+	fun renderClasspath(name: String, templatePath: String, includePath: String, cacheDir: File? = null, data: Map<String, TypedValue>): String {
+		return render(ClasspathTemplateEnvironment(name, templatePath, includePath, cacheDir, data))
+	}
+
+	fun renderClasspath(name: String, templatePath: String, includePath: String, cacheDir: File? = null, init: DataProvider.() -> Unit): String {
+		return render(ClasspathTemplateEnvironment(name, templatePath, includePath, cacheDir, init))
+	}
+
+	fun renderClasspath(name: String, path: String, cacheDir: File? = null, data: Map<String, TypedValue>): String {
+		return renderClasspath(name, path, "$path/includes", cacheDir, data)
+	}
+
+	fun renderClasspath(name: String, path: String, cacheDir: File? = null, init: DataProvider.() -> Unit): String {
+		return renderClasspath(name, path, "$path/includes", cacheDir, init)
 	}
 
 	internal fun eval(script: String, env: TemplateEnvironment): String {
@@ -112,21 +128,34 @@ _result.toString()
 		return engine.eval(script) as String
 	}
 
-	class TemplateEnvironment {
-
+	interface TemplateEnvironment {
 		val rootName: String
 		val name: String
-		val templateDir: File
-		val includeDir: File
 		val cacheDir: File?
 		val data: Map<String, TypedValue>
 
 		val template: String
-			get() = File(templateDir, "$name.ekt").readText(Charsets.UTF_8)
 		val include: String
-			get() = File(includeDir, "$name.ekt").readText(Charsets.UTF_8)
 		val cacheFile: File
 			get() = File(cacheDir!!, "$name.kts")
+
+		fun createChild(name: String): TemplateEnvironment
+
+	}
+
+	class FileTemplateEnvironment: TemplateEnvironment {
+		override val rootName: String
+		override val name: String
+		override val cacheDir: File?
+		override val data: Map<String, TypedValue>
+
+		val templateDir: File
+		val includeDir: File
+
+		override val template: String
+			get() = File(templateDir, "$name.ekt").readText(Charsets.UTF_8)
+		override val include: String
+			get() = File(includeDir, "$name.ekt").readText(Charsets.UTF_8)
 
 		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, data: Map<String, TypedValue>) {
 			this.rootName = name
@@ -140,13 +169,58 @@ _result.toString()
 		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, init: DataProvider.() -> Unit):
 				this(name, templateDir, includeDir, cacheDir, DataProvider.init(init))
 
-		constructor(name: String, parent: TemplateEnvironment, cacheDir: File? = parent.cacheDir) {
+		constructor(name: String, parent: FileTemplateEnvironment, cacheDir: File? = parent.cacheDir) {
 			this.rootName = parent.rootName
 			this.name = name
 			this.templateDir = parent.templateDir
 			this.includeDir = parent.includeDir
 			this.cacheDir = cacheDir
 			this.data = parent.data
+		}
+
+		override fun createChild(name: String): TemplateEnvironment {
+			return FileTemplateEnvironment(name, this)
+		}
+
+	}
+
+	class ClasspathTemplateEnvironment: TemplateEnvironment {
+		override val rootName: String
+		override val name: String
+		override val cacheDir: File?
+		override val data: Map<String, TypedValue>
+
+		val templatePath: String
+		val includePath: String
+
+		override val template: String
+			get() = EKT::class.java.getResourceAsStream("$templatePath/$name.ekt").bufferedReader(Charsets.UTF_8).readText()
+		override val include: String
+			get() = EKT::class.java.getResourceAsStream("$includePath/$name.ekt").bufferedReader(Charsets.UTF_8).readText()
+
+		constructor(name: String, templatePath: String, includePath: String, cacheDir: File?, data: Map<String, TypedValue>) {
+			this.rootName = name
+			this.name = name
+			this.templatePath = templatePath
+			this.includePath = includePath
+			this.cacheDir = cacheDir
+			this.data = data
+		}
+
+		constructor(name: String, templatePath: String, includePath: String, cacheDir: File?, init: DataProvider.() -> Unit):
+				this(name, templatePath, includePath, cacheDir, DataProvider.init(init))
+
+		constructor(name: String, parent: ClasspathTemplateEnvironment, cacheDir: File? = parent.cacheDir) {
+			this.rootName = parent.rootName
+			this.name = name
+			this.templatePath = parent.templatePath
+			this.includePath = parent.includePath
+			this.cacheDir = cacheDir
+			this.data = parent.data
+		}
+
+		override fun createChild(name: String): TemplateEnvironment {
+			return ClasspathTemplateEnvironment(name, this)
 		}
 
 	}

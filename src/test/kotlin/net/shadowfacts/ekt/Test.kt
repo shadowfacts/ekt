@@ -6,7 +6,7 @@ import java.io.File
  * @author shadowfacts
  */
 fun main(args: Array<String>) {
-	val res = EKT.render("template", File("."), cacheScripts = true) {
+	val res = EKT.renderClasspath("template", "/templates", cacheDir = File("cache")) {
 		"list" to (listOf(1, 2, 3) asType "List<Int>")
 	}
 

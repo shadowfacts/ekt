@@ -1,0 +1,7 @@
+Environment type: [= _env::class.simpleName =]
+
+[= list.joinToString("\n") =]
+
+Sum: [= list.sum() =]
+
+[: include("include") :]

@@ -8,6 +8,7 @@ buildscript {
 }
 
 plugins {
+	id "idea"
 	id "maven"
 }
 
@@ -22,6 +23,8 @@ dependencies {
 	compile group: "org.jetbrains.kotlin", name: "kotlin-compiler", version: kotlin_version
 	compile group: "org.jetbrains.kotlin", name: "kotlin-script-util", version: kotlin_version
 }
+
+idea.module.inheritOutputDirs = true
 
 uploadArchives {
 	repositories.mavenDeployer {
