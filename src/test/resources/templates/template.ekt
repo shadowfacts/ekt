@@ -1,3 +1,7 @@
+[: import java.util.ArrayList :]
+
+[= ArrayList::class.simpleName =]
+
 Environment type: [= _env::class.simpleName =]
 
 [= list.joinToString("\n") =]

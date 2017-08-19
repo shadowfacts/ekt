@@ -24,6 +24,8 @@ object EKT {
 	private val startStringRegex = Regex("([:=#])]")
 	private val endStringRegex = Regex("\\[([:=#])")
 
+	private val lastImportRegex = Regex("(import (.*?)\\n)+")
+
 	private val scriptPrefix = """
 val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
@@ -67,7 +69,11 @@ _result.toString()
 			}
 		})
 
-		val script = scriptPrefix + template + scriptSuffix
+		val lines = template.split("\n")
+		val imports = lines.filter { it.trim().startsWith("import") }.joinToString("\n")
+		template = lines.filterNot { it.trim().startsWith("import") }.joinToString("\n")
+
+		val script = imports + scriptPrefix + template + scriptSuffix
 
 		if (env.cacheDir != null) {
 			env.cacheFile.apply {
