@@ -234,15 +234,19 @@ _result.toString()
 	class DataProvider {
 		internal val map = mutableMapOf<String, TypedValue>()
 
-		infix fun String.to(value: Any) {
+		infix fun String.to(value: Any?) {
 			if (value is TypedValue) {
 				map[this] = value
 			} else {
-				map[this] = TypedValue(value, value::class.qualifiedName!!)
+				if (value == null) {
+					throw RuntimeException("Must provide explicit type for 'null' value")
+				} else {
+					map[this] = TypedValue(value, value::class.qualifiedName!!)
+				}
 			}
 		}
 
-		infix fun Any.asType(type: String): TypedValue {
+		infix fun Any?.asType(type: String): TypedValue {
 			return TypedValue(this, type)
 		}
 
@@ -255,6 +259,6 @@ _result.toString()
 		}
 	}
 
-	data class TypedValue(val value: Any, val type: String)
+	data class TypedValue(val value: Any?, val type: String)
 
 }
