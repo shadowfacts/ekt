@@ -1,5 +1,5 @@
 ---------
 Classpath include
-[= list =]
+foo: [= foo =]
 My name is: [= _env.name =]
 Root name: [= _env.rootName =]

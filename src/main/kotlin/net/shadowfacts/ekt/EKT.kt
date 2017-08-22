@@ -30,9 +30,12 @@ object EKT {
 val _env = bindings["_env"] as net.shadowfacts.ekt.EKT.TemplateEnvironment
 val _result = StringBuilder()
 fun echo(it: Any?) { _result.append(it) }
-fun include(include: String) {
-	val env = _env.createChild(include)
+fun include(include: String, data: Map<String, net.shadowfacts.ekt.EKT.TypedValue>? = null) {
+	val env = _env.createChild(include, data)
 	echo(net.shadowfacts.ekt.EKT.render(env, env.include))
+}
+fun include(include: String, init: net.shadowfacts.ekt.EKT.DataProvider.() -> Unit) {
+	include(include, data = net.shadowfacts.ekt.EKT.DataProvider.init(init))
 }
 """
 	private val scriptSuffix = """
@@ -145,7 +148,7 @@ _result.toString()
 		val cacheFile: File
 			get() = File(cacheDir!!, "$name.kts")
 
-		fun createChild(name: String): TemplateEnvironment
+		fun createChild(name: String, data: Map<String, TypedValue>? = null): TemplateEnvironment
 
 	}
 
@@ -175,17 +178,17 @@ _result.toString()
 		constructor(name: String, templateDir: File, includeDir: File, cacheDir: File?, init: DataProvider.() -> Unit):
 				this(name, templateDir, includeDir, cacheDir, DataProvider.init(init))
 
-		constructor(name: String, parent: FileTemplateEnvironment, cacheDir: File? = parent.cacheDir) {
+		constructor(name: String, parent: FileTemplateEnvironment, data: Map<String, TypedValue>?) {
 			this.rootName = parent.rootName
 			this.name = name
 			this.templateDir = parent.templateDir
 			this.includeDir = parent.includeDir
-			this.cacheDir = cacheDir
-			this.data = parent.data
+			this.cacheDir = parent.cacheDir
+			this.data = data ?: parent.data
 		}
 
-		override fun createChild(name: String): TemplateEnvironment {
-			return FileTemplateEnvironment(name, this)
+		override fun createChild(name: String, data: Map<String, TypedValue>?): TemplateEnvironment {
+			return FileTemplateEnvironment(name, this, data)
 		}
 
 	}
@@ -216,17 +219,17 @@ _result.toString()
 		constructor(name: String, templatePath: String, includePath: String, cacheDir: File?, init: DataProvider.() -> Unit):
 				this(name, templatePath, includePath, cacheDir, DataProvider.init(init))
 
-		constructor(name: String, parent: ClasspathTemplateEnvironment, cacheDir: File? = parent.cacheDir) {
+		constructor(name: String, parent: ClasspathTemplateEnvironment, data: Map<String, TypedValue>?) {
 			this.rootName = parent.rootName
 			this.name = name
 			this.templatePath = parent.templatePath
 			this.includePath = parent.includePath
-			this.cacheDir = cacheDir
-			this.data = parent.data
+			this.cacheDir = parent.cacheDir
+			this.data = data ?: parent.data
 		}
 
-		override fun createChild(name: String): TemplateEnvironment {
-			return ClasspathTemplateEnvironment(name, this)
+		override fun createChild(name: String, data: Map<String, TypedValue>?): TemplateEnvironment {
+			return ClasspathTemplateEnvironment(name, this, data)
 		}
 
 	}

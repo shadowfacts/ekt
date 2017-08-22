@@ -8,4 +8,8 @@ Environment type: [= _env::class.simpleName =]
 
 Sum: [= list.sum() =]
 
-[: include("include") :]
+[:
+include("include") {
+	"foo" to "bar"
+}
+:]
