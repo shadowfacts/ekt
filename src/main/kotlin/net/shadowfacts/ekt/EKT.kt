@@ -2,8 +2,10 @@ package net.shadowfacts.ekt
 
 import java.io.File
 import javax.script.ScriptContext
+import javax.script.ScriptEngine
 import javax.script.ScriptEngineManager
 import javax.script.SimpleScriptContext
+import kotlin.concurrent.getOrSet
 
 /**
  * @author shadowfacts
@@ -42,9 +44,7 @@ fun include(include: String, init: net.shadowfacts.ekt.EKT.DataProvider.() -> Un
 _result.toString()
 """
 
-	private val engine by lazy {
-		ScriptEngineManager().getEngineByExtension("kts")
-	}
+	private val engine = ThreadLocal<ScriptEngine>()
 
 	fun render(env: TemplateEnvironment, template: String = env.template): String {
 		if (env.cacheDir != null && env.cacheFile.exists()) {
@@ -122,6 +122,7 @@ _result.toString()
 	}
 
 	internal fun eval(script: String, env: TemplateEnvironment): String {
+		val engine = engine.getOrSet { ScriptEngineManager().getEngineByExtension("kts") }
 		engine.context = SimpleScriptContext()
 		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
 		bindings.putAll(env.data)
