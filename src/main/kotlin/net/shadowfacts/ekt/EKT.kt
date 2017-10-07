@@ -1,10 +1,9 @@
 package net.shadowfacts.ekt
 
-import java.io.File
-import javax.script.ScriptContext
-import javax.script.ScriptEngine
-import javax.script.ScriptEngineManager
-import javax.script.SimpleScriptContext
+import org.jetbrains.kotlin.cli.common.repl.KotlinJsr223JvmScriptEngineBase
+import org.jetbrains.kotlin.cli.common.repl.ReplCompileResult
+import java.io.*
+import javax.script.*
 import kotlin.concurrent.getOrSet
 
 /**
@@ -44,11 +43,11 @@ fun include(include: String, init: net.shadowfacts.ekt.EKT.DataProvider.() -> Un
 _result.toString()
 """
 
-	private val engine = ThreadLocal<ScriptEngine>()
+	private val engine = ThreadLocal<KotlinJsr223JvmScriptEngineBase>()
 
 	fun render(env: TemplateEnvironment, template: String = env.template): String {
-		if (env.cacheDir != null && env.cacheFile.exists()) {
-			return eval(env.cacheFile.readText(Charsets.UTF_8), env)
+		if (env.cacheDir != null && env.cacheScript.exists()) {
+			return eval(env.cacheScript.readText(Charsets.UTF_8), env)
 		}
 
 		@Suppress("NAME_SHADOWING")
@@ -79,7 +78,7 @@ _result.toString()
 		val script = imports + scriptPrefix + template + scriptSuffix
 
 		if (env.cacheDir != null) {
-			env.cacheFile.apply {
+			env.cacheScript.apply {
 				if (!parentFile.exists()) parentFile.mkdirs()
 				if (!exists()) createNewFile()
 				writeText(script, Charsets.UTF_8)
@@ -121,21 +120,58 @@ _result.toString()
 		return renderClasspath(name, path, "$path/includes", cacheDir, init)
 	}
 
-	internal fun eval(script: String, env: TemplateEnvironment): String {
-		val engine = engine.getOrSet { ScriptEngineManager().getEngineByExtension("kts") }
-		engine.context = SimpleScriptContext()
-		val bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE)
-		bindings.putAll(env.data)
-		bindings.put("_env", env)
+	private fun eval(script: String, env: TemplateEnvironment): String {
+		val engine = engine.getOrSet { ScriptEngineManager().getEngineByExtension("kts") as KotlinJsr223JvmScriptEngineBase }
+
+		val context = createContext(engine, env)
+
+		if (env.cacheDir != null) {
+			val cacheCompiled = env.cacheCompiled
+			val compiled = if (cacheCompiled.exists()) {
+				val fis = FileInputStream(cacheCompiled)
+				val ois = ObjectInputStream(fis)
+				val data = ois.readObject() as ReplCompileResult.CompiledClasses
+				ois.close()
+				fis.close()
+				KotlinJsr223JvmScriptEngineBase.CompiledKotlinScript(engine, engine.nextCodeLine(context, env.cacheScript.readText(Charsets.UTF_8)), data)
+			} else {
+				val compiled = engine.compile(script, context) as KotlinJsr223JvmScriptEngineBase.CompiledKotlinScript
+				val data = compiled.compiledData
+				val fos = FileOutputStream(cacheCompiled)
+				val oos = ObjectOutputStream(fos)
+				oos.writeObject(data)
+				oos.close()
+				fos.close()
+				compiled
+			}
+			return engine.eval(compiled, context) as String
+		} else {
+			return engine.eval(script, context) as String
+		}
+	}
+
+	private fun eval(script: KotlinJsr223JvmScriptEngineBase.CompiledKotlinScript, env: TemplateEnvironment): String {
+		return script.engine.eval(script, createContext(script.engine, env)) as String
+	}
+
+	private fun createContext(engine: ScriptEngine, env: TemplateEnvironment): ScriptContext {
+		val bindings = engine.createBindings().apply {
+			putAll(env.data)
+			put("_env", env)
+		}
+
+		val context = SimpleScriptContext().apply {
+			setBindings(bindings, ScriptContext.ENGINE_SCOPE)
+		}
 
 //		Hack to allow data to be accessed by name from template instead of via bindings map
-		val unwrapBindings = env.data.keys.map {
+		val unwrapBindings = env.data.keys.joinToString("\n") {
 			val type = env.data[it]!!.type
 			"val $it = (bindings[\"$it\"] as net.shadowfacts.ekt.EKT.TypedValue).value as $type"
-		}.joinToString("\n")
-		engine.eval(unwrapBindings)
+		}
+		engine.eval(unwrapBindings, context)
 
-		return engine.eval(script) as String
+		return context
 	}
 
 	interface TemplateEnvironment {
@@ -146,8 +182,10 @@ _result.toString()
 
 		val template: String
 		val include: String
-		val cacheFile: File
+		val cacheScript: File
 			get() = File(cacheDir!!, "$name.kts")
+		val cacheCompiled: File
+			get() = File(cacheDir!!, "$name.kts.compiled")
 
 		fun createChild(name: String, data: Map<String, TypedValue>? = null): TemplateEnvironment
 
