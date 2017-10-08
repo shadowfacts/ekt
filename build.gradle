@@ -9,10 +9,10 @@ buildscript {
 
 plugins {
 	id "idea"
-	id "maven"
 }
 
 apply plugin: "kotlin"
+apply from: "https://github.com/shadowfacts/maven/raw/master/maven.gradle"
 
 repositories {
 	jcenter()
@@ -25,11 +25,3 @@ dependencies {
 }
 
 idea.module.inheritOutputDirs = true
-
-uploadArchives {
-	repositories.mavenDeployer {
-		repository(url: "http://archiva.shadowfacts.net/repository/local/") {
-			authentication(userName: project.hasProperty("mavenUser") ? project.mavenUser : System.getenv("mavenUser"), password: project.hasProperty("mavenPassword") ? project.mavenPassword : System.getenv("mavenPassword"))
-		}
-	}
-}
