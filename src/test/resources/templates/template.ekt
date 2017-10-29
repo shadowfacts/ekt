@@ -8,6 +8,10 @@ Environment type: [= _env::class.simpleName =]
 
 Sum: [= list.sum() =]
 
+<pre>
+	import a.b.c;
+</pre>
+
 [:
 include("include") {
 	"foo" to "bar"

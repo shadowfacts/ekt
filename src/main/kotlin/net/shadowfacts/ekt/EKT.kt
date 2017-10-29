@@ -52,6 +52,13 @@ _result.toString()
 
 		@Suppress("NAME_SHADOWING")
 		var template = template
+		val lines = template.split("\n")
+		val isImport: (String) -> Boolean = {
+			val trimmed = it.trim()
+			trimmed.startsWith("[: import") || trimmed.startsWith("[:import")
+		}
+		val imports = lines.filter(isImport).joinToString("\n") { it.substring(2, it.length - 2) }
+		template = lines.filterNot(isImport).joinToString("\n")
 		template = template.replace("$", "\${'$'}")
 		template = ":]$template[:"
 		template = template.replace(startStringRegex, {
@@ -70,10 +77,6 @@ _result.toString()
 				throw RuntimeException("Unknown control code: $c]")
 			}
 		})
-
-		val lines = template.split("\n")
-		val imports = lines.filter { it.trim().startsWith("import") }.joinToString("\n")
-		template = lines.filterNot { it.trim().startsWith("import") }.joinToString("\n")
 
 		val script = imports + scriptPrefix + template + scriptSuffix
 

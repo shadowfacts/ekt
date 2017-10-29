@@ -8,14 +8,16 @@ import kotlin.concurrent.thread
  * @author shadowfacts
  */
 fun main(args: Array<String>) {
-	println(ManagementFactory.getRuntimeMXBean().name)
+	File("output.txt").writeText(render())
 
-	for (i in 0..99) {
-		println("Rendering $i")
-		render()
-	}
-
-	println("done")
+//	println(ManagementFactory.getRuntimeMXBean().name)
+//
+//	for (i in 0..99) {
+//		println("Rendering $i")
+//		render()
+//	}
+//
+//	println("done")
 
 //	thread {
 //		for (i in 0..30) {
